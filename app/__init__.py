@@ -2,6 +2,9 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from config import config
+import logging
+from logging.handlers import RotatingFileHandler
+import os
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -25,5 +28,23 @@ def create_app(config_name='default'):
     
     app.register_blueprint(call_bp, url_prefix='/api/calls')
     app.register_blueprint(ticket_bp, url_prefix='/api/tickets')
+    
+    # Register error handlers
+    from .utils.error_handlers import register_error_handlers
+    register_error_handlers(app)
+    
+    # Setup logging
+    if not app.debug:
+        if not os.path.exists('logs'):
+            os.mkdir('logs')
+        file_handler = RotatingFileHandler('logs/voice_agent.log', maxBytes=10240, backupCount=10)
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        ))
+        file_handler.setLevel(logging.INFO)
+        app.logger.addHandler(file_handler)
+        
+        app.logger.setLevel(logging.INFO)
+        app.logger.info('Voice Agent startup')
     
     return app

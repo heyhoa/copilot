@@ -1,4 +1,5 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
+from app import db
 
 call_bp = Blueprint('call', __name__)
 
@@ -17,3 +18,23 @@ def handle_audio_stream():
         "message": "Audio stream received",
         "status": "processing"
     })
+
+@call_bp.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    try:
+        # Test database connection
+        db.session.execute('SELECT 1')
+        
+        return jsonify({
+            "status": "healthy",
+            "message": "Service is running",
+            "database": "connected"
+        })
+    except Exception as e:
+        current_app.logger.error(f'Health check failed: {str(e)}')
+        return jsonify({
+            "status": "unhealthy",
+            "message": "Service issues detected",
+            "database": "disconnected"
+        }), 503
