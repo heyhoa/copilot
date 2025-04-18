@@ -9,8 +9,8 @@
 - [x] Add Flask-Migrate for database migrations
 - [x] Set up basic error handling and logging
 - [x] Create health check endpoint
-- [ ] Add basic authentication system
-- [ ] Set up testing framework
+- [x] Add basic authentication system
+- [x] Set up testing framework
 
 ## 🎯 Milestone 2: Voice Processing Integration
 **Goal**: Implement real-time audio streaming and processing

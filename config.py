@@ -10,6 +10,8 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-secret-key-please-change'
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
+    JWT_ERROR_MESSAGE_KEY = 'msg'
+    JWT_IDENTITY_CLAIM = 'sub'
 
 class DevelopmentConfig(Config):
     DEBUG = True
@@ -17,8 +19,15 @@ class DevelopmentConfig(Config):
 class ProductionConfig(Config):
     DEBUG = False
 
+class TestingConfig(Config):
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    JWT_SECRET_KEY = 'test-key'
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
+
 config = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
+    'testing': TestingConfig,
     'default': DevelopmentConfig
 }

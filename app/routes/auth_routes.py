@@ -40,7 +40,8 @@ def login():
     if not user or not user.check_password(data['password']):
         raise APIError('Invalid username or password', status_code=401)
         
-    access_token = create_access_token(identity=user.id)
+    # Create token with user ID as identity
+    access_token = create_access_token(identity=str(user.id))
     return jsonify({
         'status': 'success',
         'access_token': access_token
