@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_jwt_extended import JWTManager
 from config import config
 import logging
 from logging.handlers import RotatingFileHandler
@@ -8,6 +9,7 @@ import os
 
 db = SQLAlchemy()
 migrate = Migrate()
+jwt = JWTManager()
 
 def create_app(config_name='default'):
     app = Flask(__name__)
@@ -18,16 +20,20 @@ def create_app(config_name='default'):
     # Initialize extensions
     db.init_app(app)
     migrate.init_app(app, db)
+    jwt.init_app(app)
     
     # Import models
     from .models.ticket import Ticket
+    from .models.user import User
     
     # Register blueprints
     from .routes.call_routes import call_bp
     from .routes.ticket_routes import ticket_bp
+    from .routes.auth_routes import auth_bp
     
     app.register_blueprint(call_bp, url_prefix='/api/calls')
     app.register_blueprint(ticket_bp, url_prefix='/api/tickets')
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
     
     # Register error handlers
     from .utils.error_handlers import register_error_handlers

@@ -8,7 +8,7 @@
 - [x] Create basic models and database setup
 - [x] Add Flask-Migrate for database migrations
 - [x] Set up basic error handling and logging
-- [ ] Create health check endpoint
+- [x] Create health check endpoint
 - [ ] Add basic authentication system
 - [ ] Set up testing framework
 
