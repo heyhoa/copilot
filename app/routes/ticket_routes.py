@@ -15,4 +15,4 @@ def get_tickets():
     """Get all tickets"""
     return jsonify({
         "tickets": []
-    }) 
+    })

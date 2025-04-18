@@ -16,4 +16,4 @@ def handle_audio_stream():
     return jsonify({
         "message": "Audio stream received",
         "status": "processing"
-    }) 
+    })
