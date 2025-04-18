@@ -1,0 +1,24 @@
+real_estate_voice_agent/
+├── .env
+├── .gitignore
+├── README.md
+├── requirements.txt
+├── run.py
+├── config.py
+└── app/
+    ├── __init__.py
+    ├── routes/
+    │   ├── __init__.py
+    │   ├── call_routes.py
+    │   └── ticket_routes.py
+    ├── models/
+    │   ├── __init__.py
+    │   └── ticket.py
+    ├── services/
+    │   ├── __init__.py
+    │   ├── stt_service.py
+    │   ├── tts_service.py
+    │   └── llm_service.py
+    └── utils/
+        ├── __init__.py
+        └── helpers.py 
