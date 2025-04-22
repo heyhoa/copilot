@@ -5,6 +5,7 @@
 import asyncio
 import logging
 import os
+import sys # Import sys for stdout flushing
 from dotenv import load_dotenv
 # Updated imports based on AgentSession pattern
 from livekit.agents import JobContext, JobRequest, WorkerOptions, cli, AgentSession, Agent # Added AgentSession, Agent
@@ -13,111 +14,129 @@ from livekit.agents.llm import LLM, ChatContext, ChatMessage, ChatRole # Keep LL
 from livekit.agents.stt import STT # Keep STT import if needed elsewhere
 from livekit.agents.tts import TTS # Keep TTS import if needed elsewhere
 from livekit.plugins import openai, cartesia
+from livekit.protocol.agent import JobType # Import JobType enum
 
 # Load environment variables from .env file at the start
 load_dotenv()
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Set logging level to DEBUG to see more detailed logs from the framework
+logging.basicConfig(
+    level=logging.DEBUG, # Changed to DEBUG
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout), # Log to standard output
+        # You can add other handlers like logging.FileHandler("agent.log") if needed
+    ]
+)
+logger = logging.getLogger(__name__) # Get a logger for this module
 
-# --- Removed SimpleVoiceAgent Class ---
-# The logic is now handled directly in job_request_cb using AgentSession
+# Add this after the imports to inspect the JobType enum
+logger.info(f"Available JobType values: {[name for name in JobType.values()]}")
 
-# --- Updated Worker Entry Point ---
+class WorkerType:
+    def __init__(self, value):
+        self.value = value
+
+# Define the agent logic within a class inheriting from Agent
+class MyVoiceAgent(Agent):
+    def __init__(self):
+        super().__init__()
+        # Initialization logic for the agent, if any
+        # Example: Load models, set up state, etc.
+        logger.info("MyVoiceAgent initialized.")
+        # Setup event listeners if needed, e.g., self.on("track_published", self._handle_track)
+
+    async def process_request(self, session: AgentSession):
+        """
+        This method is called for each new agent session (job).
+        Implement the core agent logic here.
+        """
+        logger.info(f"Agent processing request for session: {session.id}") # Use session.id
+
+        # Example: Set up STT, LLM, TTS for the session
+        # These would typically be configured based on environment variables or job metadata
+        stt = openai.STT() # Example STT
+        llm = openai.LLM() # Example LLM
+        tts = cartesia.TTS() # Example TTS
+
+        # Assign plugins to the session
+        session.stt = stt
+        session.llm = llm
+        session.tts = tts
+
+        # Add initial chat context if needed
+        chat_ctx = ChatContext()
+        chat_ctx.messages.append(ChatMessage(role=ChatRole.SYSTEM, text="You are a helpful voice assistant."))
+        session.chat_context = chat_ctx # Assign the context to the session
+
+        try:
+            logger.info("Starting agent session...")
+            # The AgentSession manages the connection and interaction loop
+            # You can add custom logic by listening to session events or overriding methods
+            # For a basic assistant, starting the session might be enough if using default handlers
+            await session.start()
+
+            # If you need more control, you might interact with session components directly:
+            # async for transcript in session.stt:
+            #     logger.info(f"Received transcript: {transcript.text}")
+            #     # Process transcript, maybe call LLM
+            #     async for chunk in session.llm.chat(session.chat_context):
+            #         await session.say(chunk) # Use session.say for TTS output
+
+            logger.info(f"Agent session {session.id} finished.")
+
+        except Exception as e:
+            logger.error(f"Error during agent session {session.id}: {e}", exc_info=True)
+        finally:
+            logger.info(f"Cleaning up session {session.id}")
+            # AgentSession handles cleanup like closing connections automatically
+
+
+# Define the callback function for handling job requests
 async def job_request_cb(job: JobContext):
-    """Callback function to handle incoming job requests using AgentSession."""
-    logger.info(f"Worker received job request for room: {job.room.name}, participant: {job.agent.identity}")
+    """
+    This function is called by the LiveKit Agent Framework when a new job is assigned to this worker.
+    """
+    # Access job ID correctly via job.job.id
+    logger.info(f"Worker received job request for Job ID: {job.job.id}, Room: {job.room.name}")
 
-    # --- Initialize Plugins ---
-    openai_key = os.getenv("OPENAI_API_KEY")
-    cartesia_key = os.getenv("CARTESIA_API_KEY")
+    # Create an instance of your agent logic
+    agent = MyVoiceAgent()
 
-    if not openai_key:
-        logger.error("OPENAI_API_KEY not found in environment variables. Agent cannot start.")
-        # In a real scenario, you might want to signal an error back to LiveKit
-        return
-    if not cartesia_key:
-        logger.error("CARTESIA_API_KEY not found in environment variables. Agent cannot start.")
-        return
+    # Create an AgentSession - this handles the connection and lifecycle
+    # The session needs the JobContext to know which room/participant to act as
+    session = AgentSession(job_context=job) # Pass the job context here
 
-    # Initialize STT, LLM, TTS directly here
-    try:
-        stt = openai.STT(api_key=openai_key)
-        llm = openai.LLM(api_key=openai_key)
-        tts = cartesia.TTS(api_key=cartesia_key)
-        logger.info("STT, LLM, TTS plugins initialized.")
-    except Exception as e:
-        logger.error(f"Failed to initialize plugins: {e}", exc_info=True)
-        # Signal failure appropriately
-        return # Stop processing this job
+    logger.info(f"Created AgentSession with ID: {session.id}")
 
-    # --- Create Agent Session ---
-    # Configure the session with the plugins
-    session = AgentSession(
-        stt=stt,
-        llm=llm,
-        tts=tts,
-        # Add other components like VAD if needed, e.g., from livekit.plugins import silero
-        # vad=silero.VAD.load(),
-    )
-    logger.info("AgentSession created.")
+    # Start the agent's processing logic for this session
+    # The AgentSession will connect to the room internally
+    await agent.process_request(session)
 
-    # --- Define Agent Logic ---
-    # Create the Agent instance with instructions
-    agent = Agent(
-        instructions=(
-            "You are a helpful voice assistant for a real estate management company. "
-            "Your goal is to collect caller information (name, address, phone, reason for calling) "
-            "and answer basic questions. Keep your responses concise and clear."
-        ),
-        # Define tools here if needed
-        # tools=[...]
-    )
-    logger.info("Agent instance created with instructions.")
-
-    # --- Start the Session ---
-    # The AgentSession manages the interaction loop (STT -> LLM -> TTS)
-    # Start the session, passing the room from the JobRequest and the agent logic
-    logger.info(f"Starting AgentSession for job {job.id} in room {job.room.name}")
-    try:
-        await session.start(
-            room=job.room, # Pass the room object from the job
-            agent=agent,
-            # Add RoomInputOptions if needed (e.g., noise cancellation)
-            # from livekit.agents import RoomInputOptions
-            # room_input_options=RoomInputOptions(...)
-        )
-        logger.info(f"AgentSession finished for job {job.id}")
-    except Exception as e:
-        logger.error(f"Error during AgentSession execution for job {job.id}: {e}", exc_info=True)
-        # Handle session errors appropriately
-
-# --- Removed the second SimpleVoiceAgent class definition ---
+    logger.info(f"Finished processing job request for Job ID: {job.job.id}")
 
 
+# Main entry point for the agent worker
 if __name__ == "__main__":
-    # Load LiveKit connection details from environment variables
-    livekit_host = os.getenv("LIVEKIT_HOST")
-    livekit_api_key = os.getenv("LIVEKIT_API_KEY")
-    livekit_api_secret = os.getenv("LIVEKIT_API_SECRET")
+    # Get LiveKit connection details from environment variables
+    livekit_url = os.environ.get("LIVEKIT_URL")
+    livekit_api_key = os.environ.get("LIVEKIT_API_KEY")
+    livekit_api_secret = os.environ.get("LIVEKIT_API_SECRET")
 
-    if not all([livekit_host, livekit_api_key, livekit_api_secret]):
-        logger.error("LiveKit connection details (HOST, API_KEY, API_SECRET) not found in environment variables.")
-        exit(1)
+    if not all([livekit_url, livekit_api_key, livekit_api_secret]):
+        logger.error("LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET must be set")
+        sys.exit(1)
 
-    logger.info(f"Starting LiveKit Agent Worker for host: {livekit_host}")
+    logger.info(f"Starting LiveKit Agent Worker for host: {livekit_url}")
 
-    # Configure WorkerOptions, explicitly passing connection details
+    # Configure worker options
     worker_options = WorkerOptions(
         entrypoint_fnc=job_request_cb,
-        ws_url=livekit_host,         # Pass the host URL
-        api_key=livekit_api_key,     # Pass the API key
-        api_secret=livekit_api_secret # Pass the API secret
+        worker_type=WorkerType(0),  # Wrap the integer in our custom class
     )
 
     # Use the CLI helper to start the worker with the configured options
-    # It will now call job_request_cb for each incoming job
     cli.run_app(worker_options)
 
     logger.info("LiveKit Agent Worker finished.") 
